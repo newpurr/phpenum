@@ -1,10 +1,11 @@
-<?php declare(strict_types = 1);
+<?php
+
+declare(strict_types = 1);
 
 namespace Happysir\Enum;
 
 use BadMethodCallException;
 use MyCLabs\Enum\Enum;
-use function array_key_exists;
 
 /**
  * 基本枚举
@@ -18,39 +19,54 @@ abstract class BaseEnum extends Enum
     protected static array $enumCacheMapping = [];
     
     /**
-     * @param mixed    $value
-     * @param callable $userCallback
-     * @return \Happysir\Lib\BaseEnum
+     * @var bool
      */
-    protected static function newStatic(
-        $value,
-        callable $userCallback = null
-    ) : self {
-        if (isset(self::$enumCacheMapping[$value])) {
-            return self::$enumCacheMapping[$value];
+    protected static bool $initialized = false;
+    
+    /**
+     * @param $value
+     * @return \Happysir\Enum\BaseEnum|null
+     */
+    public static function for($value) : ?BaseEnum
+    {
+        return self::newOnce($value);
+    }
+    
+    /**
+     * @param string                  $key
+     * @param \Happysir\Enum\BaseEnum $enum
+     */
+    protected static function cacheEnum(string $key, BaseEnum $enum) : void
+    {
+        static::$enumCacheMapping[static::class][$key] = $enum;
+    }
+    
+    /**
+     * Returns instances of the Enum class of all Enum constants
+     *
+     * @psalm-pure
+     * @psalm-return array<string, static>
+     * @return static[] Constant name in key, Enum instance in value
+     */
+    public static function values()
+    {
+        if (!self::$initialized) {
+            self::init();
         }
         
-        $enum = new static($value);
-        
-        if ($userCallback) {
-            $userCallback($enum);
-        }
-        
-        self::$enumCacheMapping[$value] = $enum;
-        
-        return $enum;
+        return static::$enumCacheMapping[static::class];
     }
     
     /**
      * @param string $name
      * @param array  $arguments
-     * @return \Happysir\Lib\BaseEnum
+     * @return \Happysir\Enum\BaseEnum
      */
     public static function __callStatic($name, $arguments)
     {
         $array = static::toArray();
         if (isset($array[$name]) || array_key_exists($name, $array)) {
-            return static::newStatic($array[$name]);
+            return static::newOnce($array[$name]);
         }
         
         throw new BadMethodCallException(
@@ -71,40 +87,83 @@ abstract class BaseEnum extends Enum
     }
     
     /**
-     * getTranslations
+     * toList
      *
+     * @param callable|null $transform
      * @return array
      */
-    public static function toList() : array
+    public static function toList(callable $transform = null) : array
     {
-        static::init();
-        
         $list = [];
-        foreach (self::$enumCacheMapping as $enum) {
-            $list[] = $enum->toFields();
+        foreach (self::values() as $enum) {
+            $list[] = $transform === null ? $enum->toFields() : $transform($enum);
         }
         
         return $list;
     }
     
     /**
-     * @return void
+     * init
      */
     protected static function init() : void
     {
-        if (empty(static::$enumCacheMapping)) {
-            foreach (static::toArray() as $constant => $value) {
-                // 函数名是常量名
-                if (method_exists(static::class, $constant)) {
-                    static::$constant();
-                }
-                // 函数名是常量名转小驼峰
-                $name = convert_to_camel($constant);
-                if (method_exists(static::class, $constant)) {
-                    static::$name();
-                }
-            }
+        if (self::$initialized) {
+            return;
         }
+        
+        $class = static::class;
+        foreach (static::toArray() as $constant => $value) {
+            if (isset(static::$enumCacheMapping[$class][$constant])) {
+                continue;
+            }
+            
+            // 函数名是常量名
+            if (method_exists($class, $constant)) {
+                static::cacheEnum(
+                    $constant,
+                    static::$constant()
+                );
+                continue;
+            }
+            
+            // 函数名是常量名转小驼峰
+            $name = convert_to_camel($constant);
+            if (method_exists($class, $name)) {
+                static::cacheEnum(
+                    $constant,
+                    static::$name()
+                );
+                continue;
+            }
+            
+            // 无匹配的自定义函数,生成默认的枚举类
+            static::newOnce($value);
+        }
+        
+        self::$initialized = true;
+    }
+    
+    /**
+     * @param               $value
+     * @param callable|null $userCallable
+     * @return \Happysir\Enum\BaseEnum
+     */
+    protected static function newOnce($value, callable $userCallable = null) : self
+    {
+        $key   = self::search($value);
+        $class = static::class;
+        if (isset(static::$enumCacheMapping[$class][$key])) {
+            return static::$enumCacheMapping[$class][$key];
+        }
+        
+        static::cacheEnum(
+            $key,
+            $enum = new static($value)
+        );
+        
+        $userCallable($enum);
+        
+        return $enum;
     }
 }
 
