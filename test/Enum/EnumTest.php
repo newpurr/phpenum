@@ -6,6 +6,7 @@ namespace Happysir\Enum\Test\Enum;
 
 use Happysir\Enum\BaseEnum;
 use Happysir\Enum\Test\TestCase;
+use UnexpectedValueException;
 
 class TEnum extends BaseEnum
 {
@@ -59,7 +60,7 @@ class TEnum extends BaseEnum
  */
 class EnumTest extends TestCase
 {
-    public function testEnum() : void
+    public function testToArray() : void
     {
         $this->assertEquals(
             [
@@ -68,14 +69,17 @@ class EnumTest extends TestCase
             ],
             TEnum::toArray()
         );
-        
+    }
+    
+    public function testValues() : void
+    {
         $this->assertNotEquals(
             [
                 'TEST1' => TEnum::TEST1(),
             ],
             TEnum::values()
         );
-        
+    
         $this->assertEquals(
             [
                 'TEST1'      => TEnum::TEST1(),
@@ -83,10 +87,16 @@ class EnumTest extends TestCase
             ],
             TEnum::values()
         );
-        
+    }
+    
+    public function testConstant()
+    {
         $this->assertEquals(TEnum::TEST1, '1');
         $this->assertEquals(TEnum::TEST_DEMO2, '2');
-        
+    }
+    
+    public function testKeys()
+    {
         $this->assertEquals(
             [
                 'TEST1',
@@ -94,13 +104,16 @@ class EnumTest extends TestCase
             ],
             TEnum::keys()
         );
-        
+    }
+    
+    public function testValid()
+    {
         $this->assertTrue(TEnum::isValidKey('TEST1'));
         $this->assertTrue(TEnum::isValid('2'));
-        
-        $this->assertTrue(TEnum::testDemo2()->equals(TEnum::testDemo2()));
-        $this->assertFalse(TEnum::TEST1()->equals(TEnum::testDemo2()));
-        
+    }
+    
+    public function testToList()
+    {
         $this->assertEquals(
             [
                 ['value' => '1', 'key' => 'TEST1'],
@@ -108,7 +121,7 @@ class EnumTest extends TestCase
             ],
             TEnum::toList()
         );
-        
+    
         $this->assertEquals(
             [
                 ['value' => '1', 'key' => 'TEST1', 'name' => 'TEST1'],
@@ -124,5 +137,26 @@ class EnumTest extends TestCase
                 }
             )
         );
+    }
+    
+    public function testEquals() : void
+    {
+        $this->assertTrue(TEnum::testDemo2()->equals(TEnum::testDemo2()));
+        $this->assertFalse(TEnum::TEST1()->equals(TEnum::testDemo2()));
+    }
+    
+    public function testFor() : void
+    {
+        $this->expectException(UnexpectedValueException::class);
+        
+        $enum = TEnum::for(TEnum::TEST_DEMO2);
+        $this->assertTrue(TEnum::testDemo2()->equals($enum));
+        $this->assertFalse(TEnum::TEST1()->equals($enum));
+        
+        $enum = TEnum::for(TEnum::TEST1);
+        $this->assertFalse(TEnum::testDemo2()->equals($enum));
+        $this->assertTrue(TEnum::TEST1()->equals($enum));
+    
+        TEnum::for(20);
     }
 }
